@@ -1,0 +1,150 @@
+/**
+ * Motor de automação no Jenkins DEVOPS
+ * Versão -001.00
+ * CONATEC 25/04/2023
+ * SISTEMA = "drift"
+ * VM de desenvolvimento 172.17.24.210
+ */
+
+def getGitAuthor() {
+    return sh(script: 'git log -1 --format=%an', returnStdout: true).trim()
+}
+pipeline{
+    agent { label 'VM-SDF4673-210'
+    }
+    options {
+        buildDiscarder logRotator( 
+            daysToKeepStr: '16', 
+            numToKeepStr: '10'
+        )
+    }
+    environment {
+        aguEmails = "ramon.leal@agu.gov.br,gilson.miranda@agu.gov.br,danilo.nferreira@agu.gov.br,joao.lsouza@agu.gov.br,francisco.dias@agu.gov.br"
+        //aguEmails = "ramon.umleal@gmail.com"
+        SISTEMA = "drift"
+        APIPATH = "/home/jenkins/jenkins-agent/workspace"
+        PROJ = "/var/www/"
+        IPREQUEST ="http://172.17.24.210:8081/"
+        SONAQUBE ="http://172.17.24.233:9000/dashboard?id="
+        APPNAME="Sistema Drift-DEVOP"
+        GITAUTHOR="${env.GIT_COMMITTER_EMAIL}"
+        URLD="${IPDESENV}${PORTA}"
+    }
+    stages{
+        stage('Verificando Versões'){
+            steps{
+                echo 'Verificando Versões.............................' 
+                sh 'date'
+                sh 'ifconfig eth0 | grep inet'
+                echo 'FIM Verificando Versões.............................'
+                }
+            }
+        	stage('Capture Commit Messages') {
+                steps {
+                    script {
+                        def changeLogSets = currentBuild.changeSets
+                        def commits = []
+                        changeLogSets.each { cs ->
+                            cs.items.each { item ->
+                                commits.add("Commit by ${item.author.fullName}: ${item.msg}")
+                            }
+                        }
+                        env.COMMIT_MESSAGES = commits.join('\n')
+                    }
+                }
+            }
+        stage('SonarQube Analysis') {
+                environment{
+                    scannerHome = tool 'SONAR-SCANNER'
+                }
+                steps{
+                    sh "${scannerHome}/bin/sonar-scanner"
+                }
+            }
+        stage('OWASP Dependency') {
+            steps {
+                dependencyCheck additionalArguments: '''
+						-o './'
+						-s './'
+						-f 'ALL' 
+						--prettyPrint
+						--format HTML --format XML''', odcInstallation: 'Dependency Check'
+                dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+            }
+        }
+        stage('Movendo arquivos'){
+                steps{
+                echo 'Movendo arquivos.............................' 
+                    sh 'cp -R /home/jenkins/jenkins-agent/workspace/1-Drift-DEVOP-210/* $PROJ$SISTEMA/' 
+                }
+            }
+/*	    
+     	stage('requirements') {
+		steps{
+	            script {
+	               sh '/var/www/$SISTEMA/venv/bin/activate && /var/www/$SISTEMA/venv/bin/python3 -m pip install -r requirements.txt'
+	            } 
+    		}
+	}*/
+        stage('reload apache'){  
+                steps{
+                    echo 'reload.............................'
+                    sh 'ls -lla /var/www/$SISTEMA'
+                    sh '/etc/init.d/apache2 restart'
+                }
+            }
+        stage('Build'){
+                steps {
+                    script {
+                       def response = httpRequest 'http://172.17.24.210:8081/'
+                        println("Status: "+response.status)
+                        if(response.status.toString() != "200"){
+                        println "ERROR:"+ errorMsg
+                        }
+                        else{ 
+                        println "ALL OK!!!. Job ${env.JOB_NAME} Pagina WEB OK deu status ${+response.status} agora sim!!!"
+                        sh 'touch SUCCESS.log'
+                        //sh 'echo ALL OK!!! > branch.log'
+                        }
+                    }
+                }
+            }
+            stage('Deploy Code to Development') {
+                steps {   
+                    echo "Deploy to Dev"
+                            script {
+                                GITAUTHOR = getGitAuthor()
+                                echo "O autor do último commit é: ${GITAUTHOR}"                
+                        } 
+                } 
+            }
+            stage('Email de notificação') {
+                 steps {
+                    echo "Email de notificação"
+                }
+            }
+        }
+    post{
+        success{
+            sh 'echo "Isso sempre será executado quando da success! "'
+            archiveArtifacts artifacts: '*.log', onlyIfSuccessful: true
+            emailext to: "${aguEmails}",
+            subject: "Server jenkins build:${currentBuild.currentResult} Aplicação: ${SISTEMA}",
+            body: "<b>Aplicação: ${SISTEMA}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br> <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>\n<br> Mensagens de Commit:\n${env.COMMIT_MESSAGES}",
+            attachLog: true
+            cleanWs()
+        }
+        failure {
+            sh 'echo "Ixe deu erro da uma olhada nos logs failure"'
+            sh 'tail -n 25  /var/www/$SISTEMA/logs/access.log > "access.log"'
+            sh 'tail -n 25  /var/www/$SISTEMA/logs/error.log > "error.log"'
+            sh 'cat /var/www/$SISTEMA/requirements.txt > "requirements.txt"'
+            archiveArtifacts artifacts: '*.log', onlyIfSuccessful: true
+            emailext to: "${aguEmails}",
+            subject: "jenkins build:${currentBuild.currentResult} Aplicação: ${SISTEMA}",//ok
+            body: "<b>Aplicação: ${SISTEMA}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br>   <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>",
+                attachLog: true
+                cleanWs()
+            }   
+    }
+}
