@@ -56,12 +56,12 @@ def restart_apache():
     subprocess.run(['systemctl', 'restart', 'apache2'])
     print("Apache2 reiniciado.")
 
-def check_existing_application(name):
+def check_existing_application(nomeAplicacao):
     """
     Verifica se já existe uma aplicação com o nome fornecido.
     """
     existing_apps = subprocess.run(['ls', '/var/www/'], capture_output=True, text=True)
-    existing_apps_list = re.findall(r'\b\w+-' + name + r'\b', existing_apps.stdout)
+    existing_apps_list = re.findall(r'\b\w+-' + nomeAplicacao + r'\b', existing_apps.stdout)
     if existing_apps_list:
         print("Já existe uma aplicação com esse nome.")
         print("Aplicações existentes:")
@@ -70,7 +70,91 @@ def check_existing_application(name):
         return True
     return False
 
-def create_application_directories(name, server_type):
+def create_directories(nomeAplicacao):
+    """
+    Cria os diretórios para a nova aplicação.
+    """
+    os.makedirs(f"/var/www/{nomeAplicacao}", exist_ok=True)
+    os.makedirs(f"/var/www/{nomeAplicacao}/logs", exist_ok=True)
+
+def create_venv(nomeAplicacao):
+    """
+    Cria o ambiente virtual para a aplicação.
+    """
+    subprocess.run(['python3', '-m', 'venv', f'/var/www/{nomeAplicacao}/venv'])
+
+def create_wsgi_file(nomeAplicacao):
+    """
+    Cria o arquivo app.wsgi para a aplicação.
+    """
+    with open(f"/var/www/{nomeAplicacao}/app.wsgi", "w") as wsgi_file:
+        wsgi_file.write(f"import sys\n\nsys.path.insert(0, '/var/www/{nomeAplicacao}')\n\nfrom app import app as application")
+
+def configure_ports(portaSistema):
+    """
+    Configura a porta no arquivo de configuração do Apache2.
+    """
+    with open("/etc/apache2/ports.conf", "a") as ports_conf:
+        ports_conf.write(f"\nListen {portaSistema}\n")
+
+def get_server_type():
+    """
+    Pergunta ao usuário sobre o tipo de servidor (homologação ou desenvolvimento) e retorna o valor.
+    """
+    while True:
+        server_type = input("Selecione o tipo de servidor (1: Homologação, 2: Desenvolvimento): ")
+        if server_type in ['1', '2']:
+            return "Homologação" if server_type == '1' else "Desenvolvimento"
+        else:
+            print("Opção inválida. Por favor, escolha 1 para Homologação ou 2 para Desenvolvimento.")
+
+def get_ipv4():
+    """
+    Obtém o endereço IP IPv4 do servidor.
+    """
+    try:
+        # Obtém o endereço IP IPv4 do servidor usando o comando 'hostnomeAplicacao -I'
+        result = subprocess.run(['hostnomeAplicacao', '-I'], capture_output=True, text=True)
+        ip_address = result.stdout.strip().split()[0]  # Extrai o primeiro endereço IP da lista
+        return ip_address
+    except Exception as e:
+        print(f"Erro ao obter o endereço IP IPv4 do servidor: {e}")
+        return None
+
+# Exemplo de uso das funções
+tipoServidor = get_server_type()
+print(f"Tipo de servidor selecionado: {tipoServidor}")
+
+ip_servidor = get_ipv4()
+if ip_servidor:
+    print(f"Endereço IP IPv4 do servidor: {ip_servidor}")
+
+def configure_site(nomeAplicacao, ip_servidor, portaSistema):
+    """
+    Configura o arquivo de configuração do site no Apache2.
+    """
+    with open(f"/etc/apache2/sites-available/{nomeAplicacao}.conf", "w") as site_conf:
+        site_conf.write(f"<VirtualHost *:{portaSistema}>\n")
+        site_conf.write(f"\tServernomeAplicacao {ip_servidor}\n")
+        site_conf.write(f"\tWSGIDaemonProcess {nomeAplicacao} python-home=/var/www/{nomeAplicacao}/venv user=www-data group=www-data threads=5\n")
+        site_conf.write(f"\tWSGIScriptAlias / /var/www/{nomeAplicacao}/app.wsgi\n")
+        site_conf.write(f"\t<Directory /var/www/{nomeAplicacao}>\n")
+        site_conf.write(f"\t\tWSGIPassAuthorization On\n")
+        site_conf.write(f"\t\tWSGIProcessGroup {nomeAplicacao}\n")
+        site_conf.write(f"\t\tWSGIApplicationGroup %{GLOBAL}\n")
+        site_conf.write(f"\t\tOrder deny,allow\n")
+        site_conf.write(f"\t\tAllow from all\n")
+        site_conf.write(f"\t</Directory>\n")
+        site_conf.write(f"\tAlias /static /var/www/{nomeAplicacao}/static\n")
+        site_conf.write(f"\t<Directory /var/www/{nomeAplicacao}/static/>\n")
+        site_conf.write(f"\t\tOrder allow,deny\n")
+        site_conf.write(f"\t\tAllow from all\n")
+        site_conf.write(f"\t</Directory>\n")
+        site_conf.write(f"\tErrorLog /var/www/{nomeAplicacao}/logs/error.log\n")
+        site_conf.write(f"\tCustomLog /var/www/{nomeAplicacao}/logs/access.log combined\n")
+        site_conf.write(f"</VirtualHost>\n")
+
+def create_application_directories(nomeAplicacao, server_type):
     """
     Cria os diretórios para a nova aplicação.
     """
@@ -85,42 +169,42 @@ def create_application_directories(name, server_type):
         print("A porta deve estar entre 8100 e 8199.")
         return
 
-    # Criação dos diretórios
-    os.makedirs(f"/var/www/{name}", exist_ok=True)
-    os.makedirs(f"/var/www/{name}/logs", exist_ok=True)
+    create_directories(nomeAplicacao)
+    create_venv(nomeAplicacao)
+    create_wsgi_file(nomeAplicacao)
+    configure_ports(portaSistema)
+    configure_site(nomeAplicacao, tipoServidor, portaSistema)
 
-    # Criação do ambiente virtual
-    subprocess.run(['python3', '-m', 'venv', f'/var/www/{name}/venv'])
 
-    # Criação do arquivo app.wsgi
-    with open(f"/var/www/{name}/app.wsgi", "w") as wsgi_file:
-        wsgi_file.write(f"import sys\n\nsys.path.insert(0, '/var/www/{name}')\n\nfrom app import app as application")
+def ativarSaite(nomeAplicacao):
+    """
+    Ativa o site no Apache2.
+    """
+    subprocess.run(['a2ensite', f'{nomeAplicacao}.conf'])
+    print(f"Site {nomeAplicacao} ativado.")
 
-    # Configuração da porta no Apache2
-    with open("/etc/apache2/ports.conf", "a") as ports_conf:
-        ports_conf.write(f"\nListen {portaSistema}\n")
+def atualizarDependencias(nomeAplicacao):
+    """
+    Verifica se existe um arquivo 'requirements.txt' no diretório da aplicação.
+    Se existir, ativa o ambiente virtual e instala as dependências.
+    """
+    requirements_file = f"/var/www/{nomeAplicacao}/requirements.txt"
+    if os.path.exists(requirements_file):
+        # Ativa o ambiente virtual
+        subprocess.run(['source', f'/var/www/{nomeAplicacao}/venv/bin/activate'], shell=True)
 
-    # Configuração do arquivo de configuração do site
-    with open(f"/etc/apache2/sites-available/{name}.conf", "w") as site_conf:
-        site_conf.write(f"<VirtualHost *:{portaSistema}>\n")
-        site_conf.write(f"\tServerName {tipoServidor}\n")
-        site_conf.write(f"\tWSGIDaemonProcess {name} python-home=/var/www/{name}/venv user=www-data group=www-data threads=5\n")
-        site_conf.write(f"\tWSGIScriptAlias / /var/www/{name}/app.wsgi\n")
-        site_conf.write(f"\t<Directory /var/www/{name}>\n")
-        site_conf.write(f"\t\tWSGIPassAuthorization On\n")
-        site_conf.write(f"\t\tWSGIProcessGroup {name}\n")
-        site_conf.write(f"\t\tWSGIApplicationGroup %{GLOBAL}\n")
-        site_conf.write(f"\t\tOrder deny,allow\n")
-        site_conf.write(f"\t\tAllow from all\n")
-        site_conf.write(f"\t</Directory>\n")
-        site_conf.write(f"\tAlias /static /var/www/{name}/static\n")
-        site_conf.write(f"\t<Directory /var/www/{name}/static/>\n")
-        site_conf.write(f"\t\tOrder allow,deny\n")
-        site_conf.write(f"\t\tAllow from all\n")
-        site_conf.write(f"\t</Directory>\n")
-        site_conf.write(f"\tErrorLog /var/www/{name}/logs/error.log\n")
-        site_conf.write(f"\tCustomLog /var/www/{name}/logs/access.log combined\n")
-        site_conf.write(f"</VirtualHost>\n")
+        # Instala as dependências
+        subprocess.run(['pip3', 'install', '-r', requirements_file])
+        print("Dependências instaladas.")
+    else:
+        print("Arquivo 'requirements.txt' não encontrado.")
+
+def imprimir_endereco(ip_servidor, portaSistema):
+    """
+    Combina o endereço IP do servidor com a porta do sistema e imprime.
+    """
+    endereco = f"{ip_servidor}:{portaSistema}"
+    print(f"O endereço do servidor é: {endereco}")
 
 def main():
     check_python_apache()
@@ -137,16 +221,16 @@ def main():
         choice = input("Escolha uma opção: ")
 
         if choice == '1':
-            name = input("Digite o nome da aplicação: ")
-            if not re.match("^[a-zA-Z][a-zA-Z0-9]*$", name) or len(name) < 3:
+            nomeAplicacao = input("Digite o nome da aplicação: ")
+            if not re.match("^[a-zA-Z][a-zA-Z0-9]*$", nomeAplicacao) or len(nomeAplicacao) < 3:
                 print("O nome da aplicação deve começar com uma letra, conter apenas letras e números, e ter no mínimo 3 caracteres.")
                 continue
 
-            if check_existing_application(name):
+            if check_existing_application(nomeAplicacao):
                 continue
 
             server_type = input("Selecione o tipo de servidor (1: Homologação, 2: Desenvolvimento): ")
-            create_application_directories(name, server_type)
+            create_application_directories(nomeAplicacao, server_type)
         elif choice == '2':
             pass  # Implementar a instalação com React
         elif choice == '3':
@@ -160,5 +244,5 @@ def main():
         else:
             print("Opção inválida. Por favor, escolha uma opção válida.")
 
-if __name__ == "__main__":
+if __nomeAplicacao__ == "__main__":
     main()
