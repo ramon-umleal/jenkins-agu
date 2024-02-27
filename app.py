@@ -2,10 +2,6 @@ import subprocess
 import os
 import re
 
-# Variável global para armazenar o link do repositório Git
-git_repo_link = "https://github.com/ramon-umleal/jenkins-agu.git"
-
-
 def main():
     check_python_apache()
 
@@ -30,7 +26,9 @@ def main():
                 continue
 
             server_type = get_server_type()
-            create_application_directories(nomeAplicacao, server_type)
+            portaSistema = create_application_directories(nomeAplicacao, server_type)
+            if portaSistema is not None:
+                print_report(nomeAplicacao, server_type, portaSistema)
         elif choice == '2':
             pass  # Implementar a instalação com React
         elif choice == '3':
@@ -43,6 +41,21 @@ def main():
             break
         else:
             print("Opção inválida. Por favor, escolha uma opção válida.")
+
+
+def print_report(nomeAplicacao, tipoServidor, portaSistema):
+    """
+    Imprime um relatório das atividades realizadas durante a execução do programa.
+    """
+    print("\n--- Relatório de Atividades ---")
+    print(f"Nome da Aplicação: {nomeAplicacao}")
+    print(f"Tipo de Servidor: {'Homologação' if tipoServidor == '1' else 'Desenvolvimento'}")
+    print(f"Porta Utilizada: {portaSistema}")
+    print("Caminhos dos Arquivos Criados/Alterados:")
+    print(f"- Diretório da Aplicação: /var/www/{nomeAplicacao}")
+    print(f"- Arquivo de Configuração do Apache2: /etc/apache2/sites-available/{nomeAplicacao}.conf")
+    print("- Arquivo app.wsgi criado no diretório da aplicação")
+    print("- Porta configurada no arquivo /etc/apache2/ports.conf")
 
 
 def check_python_apache():
@@ -142,8 +155,24 @@ def configure_ports(portaSistema):
     """
     Configura a porta no arquivo de configuração do Apache2.
     """
+    # Verificar se a porta já está configurada
+    with open("/etc/apache2/ports.conf", "r") as ports_conf:
+        existing_ports = ports_conf.read()
+        if f"Listen {portaSistema}" in existing_ports:
+            print(f"A porta {portaSistema} já está configurada.")
+            return
+
+    # Verificar se a porta está em uso
+    used_ports = subprocess.run(['netstat', '-tuln'], capture_output=True, text=True)
+    if f"LISTEN:{portaSistema}" in used_ports.stdout:
+        print(f"A porta {portaSistema} já está em uso.")
+        return
+
+    # Se a porta não estiver configurada e não estiver em uso, adicionar ao arquivo
     with open("/etc/apache2/ports.conf", "a") as ports_conf:
         ports_conf.write(f"\nListen {portaSistema}\n")
+
+    print(f"Porta {portaSistema} configurada com sucesso.")
 
 
 def get_server_type():
@@ -184,7 +213,7 @@ def configure_site(nomeAplicacao, ip_servidor, portaSistema):
         site_conf.write(f"\t<Directory /var/www/{nomeAplicacao}>\n")
         site_conf.write(f"\t\tWSGIPassAuthorization On\n")
         site_conf.write(f"\t\tWSGIProcessGroup {nomeAplicacao}\n")
-        site_conf.write(f"\t\tWSGIApplicationGroup %{GLOBAL}\n")
+        site_conf.write(f"\t\tWSGIApplicationGroup %{{GLOBAL}}\n")
         site_conf.write(f"\t\tOrder deny,allow\n")
         site_conf.write(f"\t\tAllow from all\n")
         site_conf.write(f"\t</Directory>\n")
@@ -201,14 +230,17 @@ def configure_site(nomeAplicacao, ip_servidor, portaSistema):
 def create_application_directories(nomeAplicacao, server_type):
     """
     Cria os diretórios para a nova aplicação.
+    Retorna a porta utilizada.
     """
     # Pergunta ao usuário sobre a porta desejada
-    portaSistema = input("Digite a porta desejada para a aplicação (ou pressione Enter para porta sequencial a partir de 8200): ")
-    if not portaSistema:
-        portaSistema = 8200
-    elif not 8100 <= int(portaSistema) <= 8199:
-        print("A porta deve estar entre 8100 e 8199.")
-        return
+    portaSistema_input = input("Digite a porta desejada para a aplicação (ou pressione Enter para porta sequencial a partir de 8200): ")
+    if not portaSistema_input:
+        portaSistema = find_next_port()
+    else:
+        portaSistema = int(portaSistema_input)
+        if not 8100 <= portaSistema <= 8199:
+            print("A porta deve estar entre 8100 e 8199.")
+            return None
 
     create_directories(nomeAplicacao)
     create_venv(nomeAplicacao)
@@ -220,39 +252,19 @@ def create_application_directories(nomeAplicacao, server_type):
         print(f"Endereço IP IPv4 do servidor: {ip_servidor}")
 
     configure_site(nomeAplicacao, ip_servidor, portaSistema)
+    return portaSistema
 
 
-def ativarSaite(nomeAplicacao):
+def find_next_port(start_port=8200):
     """
-    Ativa o site no Apache2.
+    Encontra a próxima porta disponível a partir de uma porta inicial.
     """
-    subprocess.run(['a2ensite', f'{nomeAplicacao}.conf'])
-    print(f"Site {nomeAplicacao} ativado.")
-
-
-def atualizarDependencias(nomeAplicacao):
-    """
-    Verifica se existe um arquivo 'requirements.txt' no diretório da aplicação.
-    Se existir, ativa o ambiente virtual e instala as dependências.
-    """
-    requirements_file = f"/var/www/{nomeAplicacao}/requirements.txt"
-    if os.path.exists(requirements_file):
-        # Ativa o ambiente virtual
-        subprocess.run(['source', f'/var/www/{nomeAplicacao}/venv/bin/activate'], shell=True)
-
-        # Instala as dependências
-        subprocess.run(['pip3', 'install', '-r', requirements_file])
-        print("Dependências instaladas.")
-    else:
-        print("Arquivo 'requirements.txt' não encontrado.")
-
-
-def imprimir_endereco(ip_servidor, portaSistema):
-    """
-    Combina o endereço IP do servidor com a porta do sistema e imprime.
-    """
-    endereco = f"{ip_servidor}:{portaSistema}"
-    print(f"O endereço do servidor é: {endereco}")
+    used_ports = subprocess.run(['netstat', '-tuln'], capture_output=True, text=True)
+    for port in range(start_port, 8200 + 100):  # Tentar até 8200 + 100 (8300)
+        if f"LISTEN:{port}" not in used_ports.stdout:
+            return port
+    print("Não foi possível encontrar uma porta disponível.")
+    return None
 
 
 if __name__ == "__main__":
