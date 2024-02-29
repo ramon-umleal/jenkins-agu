@@ -1,6 +1,8 @@
 import subprocess
 import os
 import re
+import requests
+import json
 
 def main():
     check_python_apache()
@@ -12,7 +14,8 @@ def main():
         print("3. Verificar as portas usadas e portas disponíveis")
         print("4. Reiniciar o Apache2")
         print("5. Verificar se já tem aplicação com o nome rodando no servidor")
-        print("6. Sair da aplicação")
+        print("6. Criar CI/CD no Jenkins")
+        print("7. Sair da aplicação")
 
         choice = input("Escolha uma opção: ")
 
@@ -38,6 +41,8 @@ def main():
         elif choice == '5':
             pass  # Implementar a verificação de aplicação pelo nome
         elif choice == '6':
+             criar_pipeline_jenkins(nomeAplicacao, jenkins_url, jenkins_user, jenkins_token)     
+        elif choice == '7':
             break
         else:
             print("Opção inválida. Por favor, escolha uma opção válida.")
@@ -134,6 +139,8 @@ def create_directories(nomeAplicacao):
     """
     os.makedirs(f"/var/www/{nomeAplicacao}", exist_ok=True)
     os.makedirs(f"/var/www/{nomeAplicacao}/logs", exist_ok=True)
+    open(f"/var/www/{nomeAplicacao}/logs/access.log", "w").close()
+    open(f"/var/www/{nomeAplicacao}/logs/error.log", "w").close()
 
 
 def create_venv(nomeAplicacao):
@@ -151,7 +158,7 @@ def create_wsgi_file(nomeAplicacao):
         wsgi_file.write(f"import sys\n\nsys.path.insert(0, '/var/www/{nomeAplicacao}')\n\nfrom app import app as application")
 
 
-def configure_ports(portaSistema):
+def configure_ports(portaSistema, ip_servidor, nomeAplicacao):
     """
     Configura a porta no arquivo de configuração do Apache2.
     """
@@ -171,7 +178,8 @@ def configure_ports(portaSistema):
     # Se a porta não estiver configurada e não estiver em uso, adicionar ao arquivo
     with open("/etc/apache2/ports.conf", "a") as ports_conf:
         ports_conf.write(f"\nListen {portaSistema}\n")
-
+        dados_adicionais = f"#{ip_servidor}:{portaSistema} - {nomeAplicacao} - /var/www/{nomeAplicacao} - {nomeAplicacao}.conf - venv: /var/www/{nomeAplicacao}/venv\n"
+        ports_conf.write(dados_adicionais)
     print(f"Porta {portaSistema} configurada com sucesso.")
 
 
@@ -245,7 +253,7 @@ def create_application_directories(nomeAplicacao, server_type):
     create_directories(nomeAplicacao)
     create_venv(nomeAplicacao)
     create_wsgi_file(nomeAplicacao)
-    configure_ports(portaSistema)
+    configure_ports(portaSistema, get_ipv4(), nomeAplicacao)
 
     ip_servidor = get_ipv4()
     if ip_servidor:
@@ -266,6 +274,43 @@ def find_next_port(start_port=8200):
     print("Não foi possível encontrar uma porta disponível.")
     return None
 
+
+def criar_pipeline_jenkins(nomeAplicacao, jenkins_url, jenkins_user, jenkins_token):
+    # Definindo o nome do job/pipeline no Jenkins
+    pipeline_name = f"{nomeAplicacao}-pipeline"
+
+    # Definindo o corpo do pipeline em formato JSON
+    pipeline_config = {
+        "name": pipeline_name,
+        "mode": "org.jenkinsci.plugins.workflow.job.WorkflowJob",
+        "from": "",
+        "Jenkinsfile": "Jenkinsfile",
+        "headers": {
+            "Content-Type": "application/json",
+        }
+    }
+
+    # Fazendo a requisição POST para criar o job/pipeline no Jenkins
+    try:
+        response = requests.post(
+            f"{jenkins_url}/job/{pipeline_name}/createItem",
+            json=pipeline_config,
+            auth=(jenkins_user, jenkins_token)
+        )
+
+        if response.status_code == 200:
+            print(f"Pipeline '{pipeline_name}' criado com sucesso!")
+        else:
+            print(f"URL do Jenkins: {jenkins_url}/job/{pipeline_name}/createItem")
+            print(f"Falha ao criar o pipeline '{pipeline_name}' no Jenkins. Status code: {response.status_code}")
+    except Exception as e:
+        print(f"Erro ao criar o pipeline: {e}")
+
+# Exemplo de uso
+nomeAplicacao = "minha-aplicacao"
+jenkins_url = "http://172.17.24.233:8080"
+jenkins_user = "sistema"
+jenkins_token = "*\-Q4ss)>bz+3H-.@"
 
 if __name__ == "__main__":
     main()
