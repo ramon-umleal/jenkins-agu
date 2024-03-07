@@ -24,6 +24,7 @@ pipeline{
         SISTEMA = "drift"
         APIPATH = "/home/jenkins/jenkins-agent/workspace"
         PROJ = "/var/www/"
+        PORTA = "8081"
         IPREQUEST ="http://172.17.24.210:8081/"
         SONAQUBE ="http://172.17.24.233:9000/dashboard?id="
         APPNAME="Sistema Drift-DEVOP"
@@ -89,8 +90,10 @@ pipeline{
         stage('reload apache'){  
                 steps{
                     echo 'reload.............................'
+                    sh 'chown -R www-data:www-data /var/www/$SISTEMA'
                     sh 'ls -lla /var/www/$SISTEMA'
                     sh '/etc/init.d/apache2 restart'
+                    
                 }
             }
         stage('Build'){

@@ -21,7 +21,7 @@ def main():
 
         if choice == '1':
             nomeAplicacao = input("Digite o nome da aplicação: ")
-            if not re.match("^[a-zA-Z][a-zA-Z0-9]*$", nomeAplicacao) or len(nomeAplicacao) < 3:
+            if not re.match("^[a-zA-Z][a-zA-Z0-9\-]*$", nomeAplicacao) or len(nomeAplicacao) < 3:
                 print("O nome da aplicação deve começar com uma letra, conter apenas letras e números, e ter no mínimo 3 caracteres.")
                 continue
 
