@@ -30,12 +30,14 @@ def criar_pipeline(session, nomeAplicacao, jenkins_url):
                     <configVersion>2</configVersion>
                     <userRemoteConfigs>
                         <hudson.plugins.git.UserRemoteConfig>
-                            <url>GIT_URL</url> <!-- Substitua GIT_URL pela URL do seu repositório Git -->
+                            <url>https://github.com/agu-pgu/stj-link.git</url>
+                            <credentialsId>jenkins-token-git-privado</credentialsId>
                         </hudson.plugins.git.UserRemoteConfig>
+
                     </userRemoteConfigs>
                     <branches>
                         <hudson.plugins.git.BranchSpec>
-                            <name>*/master</name>
+                            <name>*/DEVOP</name>
                         </hudson.plugins.git.BranchSpec>
                     </branches>
                     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -54,10 +56,15 @@ def criar_pipeline(session, nomeAplicacao, jenkins_url):
             headers={"Content-Type": "application/xml"},
             data=pipeline_config_xml
         )
-        response.raise_for_status()
-        print(f"Pipeline '{pipeline_name}' criado com sucesso!")
+        if response.status_code == 200:
+            print(f"Pipeline '{pipeline_name}' criado com sucesso!")
+        elif response.status_code == 400:
+            print(f"Já existe um pipeline com o nome '{pipeline_name}' no Jenkins porfavor escolher  outro nome.")
+        else:
+            response.raise_for_status()
     except Exception as e:
         print(f"Falha ao criar o pipeline '{pipeline_name}' no Jenkins: {e}")
+
 # Exemplo de uso
 def main():
     nomeAplicacao = "3-minha-aplicacao"
