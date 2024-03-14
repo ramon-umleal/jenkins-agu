@@ -154,6 +154,7 @@ def create_venv(nomeAplicacao):
     Cria o ambiente virtual para a aplicação.
     """
     subprocess.run(['python3', '-m', 'venv', f'/var/www/{nomeAplicacao}/venv'])
+    subprocess.run(['chmod', '+x', f'/var/www/{nomeAplicacao}/venv'])
 
 
 def create_wsgi_file(nomeAplicacao):
