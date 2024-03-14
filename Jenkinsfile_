@@ -25,6 +25,8 @@ pipeline{
         APIPAT = "/home/jenkins/jenkins-agent/workspace"
         PROJ = "/var/www/"
         PORTA = "8109"
+        IPDESENV = "http://sdf4673.agu.gov.br:"
+        IPHOMOLOG = "http://sdf4808.agu.gov.br:"
         IPREQUEST ="http://172.17.24.210:8109/"
         SONAQUBE ="http://172.17.24.233:9000/dashboard?id="
         APPNAME="Sistema gesfer-back-DEVOP"
@@ -138,7 +140,7 @@ pipeline{
             archiveArtifacts artifacts: '*.log', onlyIfSuccessful: true
             emailext to: "${aguEmails}",
             subject: "Server jenkins build:${currentBuild.currentResult} Aplicação: ${SISTEMA}",
-            body: "<b>Aplicação: ${SISTEMA}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br> <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>\n<br> Mensagens de Commit:\n${env.COMMIT_MESSAGES}",
+            body: "<b>Aplicação: ${APPNAME}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br> <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>\n<br> Mensagens de Commit:\n${env.COMMIT_MESSAGES}",
             attachLog: true
             cleanWs()
         }
@@ -150,7 +152,7 @@ pipeline{
             archiveArtifacts artifacts: '*.log', onlyIfSuccessful: true
             emailext to: "${aguEmails}",
             subject: "jenkins build:${currentBuild.currentResult} Aplicação: ${SISTEMA}",//ok
-            body: "<b>Aplicação: ${SISTEMA}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br>   <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>",
+            body: "<b>Aplicação: ${APPNAME}</b><br> Jenkins build: ${env.BUILD_NUMBER}\n no Servidor ${env.NODE_LABELS}\n<br>O build com STATUS:\n${currentBuild.currentResult}: Job de nome,${env.JOB_NAME}\n<br>Para mais informações\n Acessar o link: ${env.BUILD_URL}<p>\n<br>   <br> GITHUB -> ${env.GIT_BRANCH}\n LINK ${env.GIT_URL}</p> \n <br> link do Sistema ${URLD}\n<br><b>O autor do último commit é: ${GITAUTHOR}</b></br>\n<br> Aplicação ${SISTEMA} <b>está no ar.</b>",
                 attachLog: true
                 cleanWs()
             }   
