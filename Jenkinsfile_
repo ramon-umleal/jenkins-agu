@@ -1,8 +1,8 @@
 /**
  * Motor de automação no Jenkins DEVOPS
  * Versão -001.00
- * CONATEC 25/04/2023
- * SISTEMA = "drift"
+ * CONATEC 13/03/2024
+ * SISTEMA = "gesfer-back"
  * VM de desenvolvimento 172.17.24.210
  */
 
@@ -19,15 +19,15 @@ pipeline{
         )
     }
     environment {
-        aguEmails = "ramon.leal@agu.gov.br,gilson.miranda@agu.gov.br,danilo.nferreira@agu.gov.br,joao.lsouza@agu.gov.br,francisco.dias@agu.gov.br"
+        aguEmails = "ramon.leal@agu.gov.br,francisco.dias@agu.gov.br"
         //aguEmails = "ramon.umleal@gmail.com"
-        SISTEMA = "drift"
-        APIPATH = "/home/jenkins/jenkins-agent/workspace"
+        SISTEMA = "gesfer-back"
+        APIPAT = "/home/jenkins/jenkins-agent/workspace"
         PROJ = "/var/www/"
-        PORTA = "8081"
-        IPREQUEST ="http://172.17.24.210:8081/"
+        PORTA = "8109"
+        IPREQUEST ="http://172.17.24.210:8109/"
         SONAQUBE ="http://172.17.24.233:9000/dashboard?id="
-        APPNAME="Sistema Drift-DEVOP"
+        APPNAME="Sistema gesfer-back-DEVOP"
         GITAUTHOR="${env.GIT_COMMITTER_EMAIL}"
         URLD="${IPDESENV}${PORTA}"
     }
@@ -54,7 +54,7 @@ pipeline{
                     }
                 }
             }
-        stage('SonarQube Analysis') {
+       stage('SonarQube Analysis') {
                 environment{
                     scannerHome = tool 'SONAR-SCANNER'
                 }
@@ -62,6 +62,7 @@ pipeline{
                     sh "${scannerHome}/bin/sonar-scanner"
                 }
             }
+
         stage('OWASP Dependency') {
             steps {
                 dependencyCheck additionalArguments: '''
@@ -73,33 +74,37 @@ pipeline{
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
+
         stage('Movendo arquivos'){
                 steps{
                 echo 'Movendo arquivos.............................' 
-                    sh 'cp -R /home/jenkins/jenkins-agent/workspace/1-Drift-DEVOP-210/* $PROJ$SISTEMA/' 
+                    sh 'cp -R $APIPAT/1-$SISTEMA-DEVOP-210/* $PROJ$SISTEMA/' 
                 }
             }
-/*	    
-     	stage('requirements') {
-		steps{
-	            script {
-	               sh '/var/www/$SISTEMA/venv/bin/activate && /var/www/$SISTEMA/venv/bin/python3 -m pip install -r requirements.txt'
-	            } 
-    		}
-	}*/
+     	
+        stage('requirements') {
+            steps{
+                    script {
+                    sh 'chmod +x /var/www/$SISTEMA/venv/bin/activate'    
+                    sh '/var/www/$SISTEMA/venv/bin/activate && /var/www/$SISTEMA/venv/bin/python3 -m pip install -r requirements.txt'
+                    } 
+                }
+	    }
         stage('reload apache'){  
                 steps{
                     echo 'reload.............................'
                     sh 'chown -R www-data:www-data /var/www/$SISTEMA'
                     sh 'ls -lla /var/www/$SISTEMA'
-                    sh '/etc/init.d/apache2 restart'
+                    sh 'a2ensite $SISTEMA.conf'
+                    sh 'service apache2 reload'
+                    //sh '/etc/init.d/apache2 restart'
                     
                 }
             }
         stage('Build'){
                 steps {
                     script {
-                       def response = httpRequest 'http://172.17.24.210:8081/'
+                       def response = httpRequest 'http://172.17.24.210:8109/'
                         println("Status: "+response.status)
                         if(response.status.toString() != "200"){
                         println "ERROR:"+ errorMsg
