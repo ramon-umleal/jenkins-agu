@@ -240,6 +240,9 @@ def configure_site(nomeAplicacao, ip_servidor, portaSistema):
         site_conf.write(f"\tCustomLog /var/www/{nomeAplicacao}/logs/access.log combined\n")
         site_conf.write(f"</VirtualHost>\n")
 
+    subprocess.run(['a2ensite', f'{nomeAplicacao}', 'apache2'])
+    subprocess.run(['systemctl', 'restart', 'apache2'])
+    print("Apache2 reiniciado. e ativando o sistema")
 
 def create_application_directories(nomeAplicacao, server_type):
     """
