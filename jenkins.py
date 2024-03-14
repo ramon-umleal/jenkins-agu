@@ -1,5 +1,7 @@
 import requests
 import xml.etree.ElementTree as ET
+import sys
+
 
 
 def conectar_jenkins(jenkins_url, jenkins_user, jenkins_token):
@@ -18,7 +20,7 @@ def conectar_jenkins(jenkins_url, jenkins_user, jenkins_token):
         return None
 
 
-def criar_pipeline(session, nomeAplicacao, jenkins_url):
+def criar_pipeline(session, nomeAplicacao, github_repo, descricao_aplicacao, jenkins_url, tipo_branch):
     pipeline_name = f"{nomeAplicacao}-pipeline"
     pipeline_config_xml = f"""
      <flow-definition plugin="workflow-job@1385.vb_58b_86ea_fff1">
@@ -40,7 +42,7 @@ def criar_pipeline(session, nomeAplicacao, jenkins_url):
             <configVersion>2</configVersion>
             <userRemoteConfigs>
                 <hudson.plugins.git.UserRemoteConfig>
-                    <url>https://github.com/agu-pgu/stj-link.git</url>
+                    <url>{github_repo}</url>
                     <credentialsId>jenkins-token-git-privado</credentialsId>
                 </hudson.plugins.git.UserRemoteConfig>
             </userRemoteConfigs>
@@ -79,16 +81,19 @@ def criar_pipeline(session, nomeAplicacao, jenkins_url):
         print(f"Falha ao criar o pipeline '{pipeline_name}' no Jenkins: {e}")
 
 
-# Exemplo de uso
+
 def main():
-    nomeAplicacao = "3-minha-aplicacao"
-    jenkins_url = "http://172.17.24.233:8080"
-    jenkins_user = "sistema"
-    jenkins_token = "11f2680b848a90c255e71a8f1415308bc0"
+    nomeAplicacao = sys.argv[1]
+    jenkins_url = sys.argv[2]
+    jenkins_user = sys.argv[3]
+    jenkins_token = sys.argv[4]
+    github_repo = sys.argv[5]
+    descricao_aplicacao = sys.argv[6]
+    tipo_branch = sys.argv[7]
 
     session = conectar_jenkins(jenkins_url, jenkins_user, jenkins_token)
     if session:
-        criar_pipeline(session, nomeAplicacao, jenkins_url)
+        criar_pipeline(session, nomeAplicacao, github_repo, descricao_aplicacao, jenkins_url, tipo_branch)
 
 
 if __name__ == "__main__":

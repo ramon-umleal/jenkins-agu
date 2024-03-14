@@ -6,7 +6,13 @@ import json
 
 def main():
     check_python_apache()
+    nomeAplicacao = nomeAplicacao
+    jenkins_url = "http://172.17.24.233:8080"
+    jenkins_user = "sistema"
+    jenkins_token = "11f2680b848a90c255e71a8f1415308bc0"
 
+    # Chamada ao script jenkins.py
+    subprocess.run(['python', 'jenkins.py', nomeAplicacao, jenkins_url, jenkins_user, jenkins_token])
     while True:
         print("\nMenu:")
         print("1. Instalar uma nova aplicação com Python e Apache2")
@@ -54,7 +60,7 @@ def print_report(nomeAplicacao, tipoServidor, portaSistema):
     """
     print("\n--- Relatório de Atividades ---")
     print(f"Nome da Aplicação: {nomeAplicacao}")
-    print(f"Tipo de Servidor: {'Homologação' if tipoServidor == '1' else 'Desenvolvimento'}")
+    print(f"Tipo de Servidor: {'Homologação' if tipoServidor == '1' else tipoServidor == '2' 'Desenvolvimento'}")
     print(f"Porta Utilizada: {portaSistema}")
     print("Caminhos dos Arquivos Criados/Alterados:")
     print(f"- Diretório da Aplicação: /var/www/{nomeAplicacao}")
@@ -277,40 +283,14 @@ def find_next_port(start_port=8200):
 
 def criar_pipeline_jenkins(nomeAplicacao, jenkins_url, jenkins_user, jenkins_token):
     # Definindo o nome do job/pipeline no Jenkins
-    pipeline_name = f"{nomeAplicacao}-pipeline"
+    github_repo = input("Qual é o endereço da aplicação no GitHub? ")
+    descricao_aplicacao = input("Digite a descrição da aplicação (pressione Enter para pular): ")
+    # Se a descrição não for fornecida, use o nome da aplicação como descrição
+    if not descricao_aplicacao:
+        descricao_aplicacao = nomeAplicacao
 
-    # Definindo o corpo do pipeline em formato JSON
-    pipeline_config = {
-        "name": pipeline_name,
-        "mode": "org.jenkinsci.plugins.workflow.job.WorkflowJob",
-        "from": "",
-        "Jenkinsfile": "Jenkinsfile",
-        "headers": {
-            "Content-Type": "application/json",
-        }
-    }
 
-    # Fazendo a requisição POST para criar o job/pipeline no Jenkins
-    try:
-        response = requests.post(
-            f"{jenkins_url}/job/{pipeline_name}/createItem",
-            json=pipeline_config,
-            auth=(jenkins_user, jenkins_token)
-        )
 
-        if response.status_code == 200:
-            print(f"Pipeline '{pipeline_name}' criado com sucesso!")
-        else:
-            print(f"URL do Jenkins: {jenkins_url}/job/{pipeline_name}/createItem")
-            print(f"Falha ao criar o pipeline '{pipeline_name}' no Jenkins. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"Erro ao criar o pipeline: {e}")
-
-# Exemplo de uso
-nomeAplicacao = "minha-aplicacao"
-jenkins_url = "http://172.17.24.233:8080"
-jenkins_user = "sistema"
-jenkins_token = "*\-Q4ss)>bz+3H-.@"
 
 if __name__ == "__main__":
     main()
